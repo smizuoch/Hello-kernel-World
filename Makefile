@@ -10,7 +10,7 @@ LDFLAGS := -T linker.ld -ffreestanding -O2 -nostdlib
 
 OBJS := boot.o kernel.o
 
-.PHONY: all clean run iso run-iso check docker-image docker-myos docker-all docker-clean
+.PHONY: all clean run iso run-iso check iso-deps docker-image docker-myos docker-all docker-clean
 
 # Docker image tag (see Dockerfile comment)
 DOCKER_IMAGE ?= gcc-cross-i686-elf:with-make
@@ -32,7 +32,20 @@ check: myos.bin
 	  grub-file --is-x86-multiboot myos.bin && echo "multiboot confirmed" || \
 	  echo "(grub-file not found or not multiboot)" || true
 
-iso: myos.bin grub.cfg
+iso-deps:
+	@MISSING=0; \
+	for t in grub-mkrescue xorriso mformat; do \
+	  if ! command -v $$t >/dev/null 2>&1; then \
+	    echo "Missing tool: $$t"; \
+	    MISSING=1; \
+	  fi; \
+	done; \
+	if [ $$MISSING -eq 1 ]; then \
+	  echo "Install required tools (e.g. Debian/Ubuntu): sudo apt-get install -y grub-pc-bin xorriso mtools"; \
+	  exit 1; \
+	fi
+
+iso: iso-deps myos.bin grub.cfg
 	mkdir -p isodir/boot/grub
 	cp myos.bin isodir/boot/myos.bin
 	cp grub.cfg isodir/boot/grub/grub.cfg
@@ -41,7 +54,7 @@ iso: myos.bin grub.cfg
 run: myos.bin
 	$(QEMU) -kernel myos.bin
 
-run-iso: iso
+run-iso: myos.iso
 	$(QEMU) -cdrom myos.iso
 
 clean:
@@ -55,6 +68,10 @@ docker-image:
 # Build myos.bin inside the Docker container (no host toolchain required)
 docker-myos: docker-image
 	docker run --rm -v "$(PWD)":/work -w /work $(DOCKER_IMAGE) make myos.bin
+
+# Build myos.iso inside the Docker container (no host toolchain required)
+docker-iso: docker-image
+	docker run --rm -v "$(PWD)":/work -w /work $(DOCKER_IMAGE) make iso
 
 # Run a full `make all` inside the container
 docker-all: docker-image
