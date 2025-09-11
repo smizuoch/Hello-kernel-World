@@ -52,10 +52,14 @@ iso: iso-deps myos.bin grub.cfg
 	grub-mkrescue -o myos.iso isodir
 
 run: myos.bin
-	$(QEMU) -kernel myos.bin
+	$(QEMU) -kernel myos.bin -serial stdio
 
 run-iso: myos.iso
-	$(QEMU) -cdrom myos.iso
+	$(QEMU) -cdrom myos.iso -serial stdio
+
+# Output serial to a file instead of stdio
+run-log: myos.bin
+	$(QEMU) -kernel myos.bin -serial file:serial.log
 
 clean:
 	rm -rf $(OBJS) myos.bin isodir myos.iso

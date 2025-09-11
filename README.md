@@ -83,3 +83,19 @@ The Docker image tag defaults to `gcc-cross-i686-elf:with-make` and can be overr
 
 ## Acknowledgements
 Inspired by the OSDev Wiki “Bare Bones” tutorials and the broader hobby OS community.
+
+## Serial Logging
+`make run` invokes QEMU with `-serial stdio`. The kernel mirrors all terminal output to COM1, so messages like `terminal_writestring("42\n")` will also appear on your host terminal (stdout). This makes it easy to capture traces:
+
+```sh
+# View normally in your terminal
+make run
+
+# Save to a file while viewing
+make run | tee qemu-serial.log
+
+# Or write directly to serial.log via QEMU
+make run-log
+```
+
+The ISO run target (`make run-iso`) also uses `-serial stdio`.

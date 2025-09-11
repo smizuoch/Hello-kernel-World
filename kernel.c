@@ -57,6 +57,55 @@ static size_t terminal_column;
 static uint8_t terminal_color;
 static uint16_t* const terminal_buffer = (uint16_t*)VGA_MEMORY;
 
+/* --- Basic port I/O --- */
+static inline void outb(uint16_t port, uint8_t val)
+{
+    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
+static inline uint8_t inb(uint16_t port)
+{
+    uint8_t ret;
+    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
+}
+
+/* --- Minimal COM1 serial driver (0x3F8) --- */
+#define COM1_PORT 0x3F8
+
+static void serial_init(void)
+{
+    outb(COM1_PORT + 1, 0x00);    /* Disable all interrupts */
+    outb(COM1_PORT + 3, 0x80);    /* Enable DLAB (set baud rate divisor) */
+    outb(COM1_PORT + 0, 0x03);    /* Divisor low byte (0x03) 38400 baud */
+    outb(COM1_PORT + 1, 0x00);    /* Divisor high byte */
+    outb(COM1_PORT + 3, 0x03);    /* 8 bits, no parity, one stop bit */
+    outb(COM1_PORT + 2, 0xC7);    /* Enable FIFO, clear them, with 14-byte threshold */
+    outb(COM1_PORT + 4, 0x0B);    /* IRQs enabled, RTS/DSR set */
+}
+
+static int serial_transmit_empty(void)
+{
+    return inb(COM1_PORT + 5) & 0x20; /* THR empty */
+}
+
+static void serial_putchar(char c)
+{
+    if (c == '\n') {
+        /* Translate to CRLF for typical terminals */
+        while (!serial_transmit_empty()) { }
+        outb(COM1_PORT + 0, (uint8_t)'\r');
+    }
+    while (!serial_transmit_empty()) { }
+    outb(COM1_PORT + 0, (uint8_t)c);
+}
+
+static void serial_write(const char* data, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+        serial_putchar(data[i]);
+}
+
 static void terminal_clear(void)
 {
     for (size_t y = 0; y < VGA_HEIGHT; y++) {
@@ -128,8 +177,10 @@ void terminal_putchar(char c)
 
 void terminal_write(const char* data, size_t size)
 {
-    for (size_t i = 0; i < size; i++)
+    for (size_t i = 0; i < size; i++) {
         terminal_putchar(data[i]);
+    }
+    serial_write(data, size);
 }
 
 void terminal_writestring(const char* data)
@@ -139,6 +190,7 @@ void terminal_writestring(const char* data)
 
 void kernel_main(void)
 {
+    serial_init();
     terminal_initialize();
     terminal_writestring("42\n");
     terminal_writestring("Hello, kernel World!\n");
