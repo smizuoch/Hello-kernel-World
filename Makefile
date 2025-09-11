@@ -24,7 +24,7 @@ kernel.o: kernel.c
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 myos.bin: $(OBJS) linker.ld
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lgcc
+	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 # Optional sanity check if grub-file is available
 check: myos.bin
